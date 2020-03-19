@@ -30,10 +30,10 @@ fn main() -> Result<(), io::Error> {
     base.extend(target);
     base.sort_by(|a, b| a.time.cmp(&b.time));
 
-    let mut f = File::create("foo.txt").unwrap();
+    let mut f = File::create("foo.txt")?;
     for l in base {
-        f.write(l.content.as_bytes()).unwrap();
-        f.write(LINE_ENDING.as_bytes()).unwrap();
+        f.write(l.content.as_bytes())?;
+        f.write(LINE_ENDING.as_bytes())?;
     }
     Ok(())
 }
@@ -43,21 +43,16 @@ fn read_log_file(path: &str) -> Result<Vec<Line>, io::Error> {
     let reader = BufReader::new(file);
     let mut ret: Vec<Line> = Vec::new();
     for line in reader.lines() {
-        let line = line.unwrap();
+        let line = line?;
         let v: Vec<&str> = line.split('|').map(|s| s.trim()).collect();
-        if v.len() > 2 {
-            match NaiveDateTime::parse_from_str(v[0], "%F %H:%M:%S,%3f") {
-                Ok(dt) => {
-                    ret.push(Line::new(dt, line));
-                }
-                Err(err) => {
-                    println!("{}", err.to_string());
-                    panic!("{}", err.to_string())
-                }
+        match NaiveDateTime::parse_from_str(v[0], "%F %H:%M:%S,%3f") {
+            Ok(dt) => {
+                ret.push(Line::new(dt, line));
             }
-        } else {
-            if let Some(last) = ret.last_mut() {
-                last.content += &(LINE_ENDING.to_owned() + &line);
+            Err(_err) => {
+                if let Some(last) = ret.last_mut() {
+                    last.content += &(LINE_ENDING.to_owned() + &line);
+                }
             }
         }
     }
