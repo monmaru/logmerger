@@ -11,16 +11,25 @@ use std::io::Write;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct Line {
-    time: NaiveDateTime,
-    content: String,
-    priority: u8,
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Priority {
+    First = 1,
+    Second,
+    Third,
+    Fourth,
 }
 
-impl Line {
-    pub fn new(time: NaiveDateTime, content: String, priority: u8) -> Self {
-        Line {
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Log {
+    time: NaiveDateTime,
+    content: String,
+    priority: Priority,
+}
+
+impl Log {
+    pub fn new(time: NaiveDateTime, content: String, priority: Priority) -> Self {
+        Log {
             time,
             content,
             priority,
@@ -33,16 +42,16 @@ const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
-fn read_log_file(path: &str, priority: u8) -> Result<Vec<Line>, io::Error> {
+fn parse_log_file(path: &str, priority: Priority) -> Result<Vec<Log>, io::Error> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    let mut ret: Vec<Line> = Vec::new();
+    let mut ret: Vec<Log> = Vec::new();
     for content in reader.lines() {
         let content = content?;
         let v: Vec<&str> = content.split('|').map(|s| s.trim()).collect();
         match NaiveDateTime::parse_from_str(v[0], "%F %H:%M:%S,%3f") {
             Ok(dt) => {
-                ret.push(Line::new(dt, content, priority));
+                ret.push(Log::new(dt, content, priority));
             }
             Err(_) => {
                 if let Some(last) = ret.last_mut() {
@@ -81,17 +90,17 @@ fn main() -> Result<(), io::Error> {
         .get_matches();
 
     let base_path = matches.value_of("base").unwrap();
-    let mut base_log = read_log_file(base_path, 1)?;
-    let target_log = read_log_file(matches.value_of("target").unwrap(), 2)?;
+    let mut base_log = parse_log_file(base_path, Priority::First)?;
+    let target_log = parse_log_file(matches.value_of("target").unwrap(), Priority::Second)?;
 
     let start_time = base_log.first().unwrap().time;
     base_log.extend(target_log);
 
     if let Some(target) = matches.value_of("2nd target") {
-        base_log.extend(read_log_file(target, 3)?);
+        base_log.extend(parse_log_file(target, Priority::Third)?);
     }
     if let Some(target) = matches.value_of("3rd target") {
-        base_log.extend(read_log_file(target, 4)?);
+        base_log.extend(parse_log_file(target, Priority::Fourth)?);
     }
 
     base_log.sort_by(|a, b| a.time.cmp(&b.time).then(a.priority.cmp(&b.priority)));
@@ -100,11 +109,11 @@ fn main() -> Result<(), io::Error> {
     let dest_path = Path::new(env::current_dir()?.to_str().unwrap())
         .join(format!("{}_merged.log", file_stem.to_str().unwrap()));
     let mut f = File::create(&dest_path)?;
-    for line in base_log.iter().filter(|l| l.time >= start_time) {
+    for log in base_log.iter().filter(|l| l.time >= start_time) {
         if !matches.is_present("noidx") {
-            write!(f, "[{}] ", line.priority)?;
+            write!(f, "[{}] ", log.priority as u8)?;
         }
-        write!(f, "{}", line.content)?;
+        write!(f, "{}", log.content)?;
         write!(f, "{}", LINE_ENDING)?;
     }
 
