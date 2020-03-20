@@ -1,6 +1,9 @@
 extern crate chrono;
+#[macro_use]
+extern crate clap;
 
 use chrono::NaiveDateTime;
+use clap::{App, Arg};
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -42,7 +45,7 @@ fn read_log_file(path: &str, priority: u8) -> Result<Vec<Line>, io::Error> {
             }
             Err(_) => {
                 if let Some(last) = ret.last_mut() {
-                    last.content += &(LINE_ENDING.to_owned() + &content);
+                    last.content += &(LINE_ENDING.to_string() + &content);
                 }
             }
         }
@@ -51,13 +54,22 @@ fn read_log_file(path: &str, priority: u8) -> Result<Vec<Line>, io::Error> {
 }
 
 fn main() -> Result<(), io::Error> {
-    let args: Vec<String> = env::args().collect();
-    let mut base_log = read_log_file(&args[1], 1)?;
-    let target_log = read_log_file(&args[2], 2)?;
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about(crate_description!())
+        .arg(Arg::with_name("base").index(1).required(true))
+        .arg(Arg::with_name("target").index(2).required(true))
+        .get_matches();
+
+    let base_path = matches.value_of("base").unwrap();
+    let target_path = matches.value_of("target").unwrap();
+    let mut base_log = read_log_file(base_path, 1)?;
+    let target_log = read_log_file(target_path, 2)?;
     base_log.extend(target_log);
     base_log.sort_by(|a, b| a.time.cmp(&b.time).then(a.priority.cmp(&b.priority)));
 
-    let file_stem = Path::new(&args[1]).file_stem().unwrap();
+    let file_stem = Path::new(base_path).file_stem().unwrap();
     let mut f = File::create(format!("{}_merged.log", file_stem.to_str().unwrap()))?;
     for line in base_log {
         f.write(format!("[{}] ", line.priority).as_bytes())?;
