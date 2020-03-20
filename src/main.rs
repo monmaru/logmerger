@@ -66,15 +66,21 @@ fn main() -> Result<(), io::Error> {
     let target_path = matches.value_of("target").unwrap();
     let mut base_log = read_log_file(base_path, 1)?;
     let target_log = read_log_file(target_path, 2)?;
+    let start_time = base_log.first().unwrap().time;
     base_log.extend(target_log);
     base_log.sort_by(|a, b| a.time.cmp(&b.time).then(a.priority.cmp(&b.priority)));
 
     let file_stem = Path::new(base_path).file_stem().unwrap();
-    let mut f = File::create(format!("{}_merged.log", file_stem.to_str().unwrap()))?;
-    for line in base_log {
+    let dest_path = Path::new(env::current_dir()?.to_str().unwrap())
+        .join(format!("{}_merged.log", file_stem.to_str().unwrap()));
+    let mut f = File::create(&dest_path)?;
+    for line in base_log.iter().filter(|l| l.time >= start_time) {
         f.write(format!("[{}] ", line.priority).as_bytes())?;
         f.write(line.content.as_bytes())?;
         f.write(LINE_ENDING.as_bytes())?;
     }
+
+    println!("Merge succeeded!!!");
+    println!("[{}] was created.", dest_path.to_str().unwrap());
     Ok(())
 }
