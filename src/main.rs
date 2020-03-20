@@ -59,10 +59,25 @@ fn main() -> Result<(), io::Error> {
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
-        .arg(Arg::with_name("base").index(1).required(true))
-        .arg(Arg::with_name("target").index(2).required(true))
+        .arg(
+            Arg::with_name("base")
+                .index(1)
+                .required(true)
+                .help("Sets a base log file path"),
+        )
+        .arg(
+            Arg::with_name("target")
+                .index(2)
+                .required(true)
+                .help("Sets a target log file path"),
+        )
         .arg(Arg::with_name("2nd target").index(3).required(false))
         .arg(Arg::with_name("3rd target").index(4).required(false))
+        .arg(
+            Arg::with_name("noidx")
+                .help("Don't output index")
+                .long("noidx"),
+        )
         .get_matches();
 
     let base_path = matches.value_of("base").unwrap();
@@ -86,7 +101,9 @@ fn main() -> Result<(), io::Error> {
         .join(format!("{}_merged.log", file_stem.to_str().unwrap()));
     let mut f = File::create(&dest_path)?;
     for line in base_log.iter().filter(|l| l.time >= start_time) {
-        write!(f, "[{}] ", line.priority)?;
+        if !matches.is_present("noidx") {
+            write!(f, "[{}] ", line.priority)?;
+        }
         write!(f, "{}", line.content)?;
         write!(f, "{}", LINE_ENDING)?;
     }
