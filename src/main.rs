@@ -61,14 +61,24 @@ fn main() -> Result<(), io::Error> {
         .about(crate_description!())
         .arg(Arg::with_name("base").index(1).required(true))
         .arg(Arg::with_name("target").index(2).required(true))
+        .arg(Arg::with_name("2nd target").index(3).required(false))
+        .arg(Arg::with_name("3rd target").index(4).required(false))
         .get_matches();
 
     let base_path = matches.value_of("base").unwrap();
-    let target_path = matches.value_of("target").unwrap();
     let mut base_log = read_log_file(base_path, 1)?;
-    let target_log = read_log_file(target_path, 2)?;
+    let target_log = read_log_file(matches.value_of("target").unwrap(), 2)?;
+
     let start_time = base_log.first().unwrap().time;
     base_log.extend(target_log);
+
+    if let Some(target) = matches.value_of("2nd target") {
+        base_log.extend(read_log_file(target, 3)?);
+    }
+    if let Some(target) = matches.value_of("3rd target") {
+        base_log.extend(read_log_file(target, 4)?);
+    }
+
     base_log.sort_by(|a, b| a.time.cmp(&b.time).then(a.priority.cmp(&b.priority)));
 
     let file_stem = Path::new(base_path).file_stem().unwrap();
@@ -76,9 +86,9 @@ fn main() -> Result<(), io::Error> {
         .join(format!("{}_merged.log", file_stem.to_str().unwrap()));
     let mut f = File::create(&dest_path)?;
     for line in base_log.iter().filter(|l| l.time >= start_time) {
-        f.write(format!("[{}] ", line.priority).as_bytes())?;
-        f.write(line.content.as_bytes())?;
-        f.write(LINE_ENDING.as_bytes())?;
+        write!(f, "[{}] ", line.priority)?;
+        write!(f, "{}", line.content)?;
+        write!(f, "{}", LINE_ENDING)?;
     }
 
     #[cfg(target_os = "windows")]
