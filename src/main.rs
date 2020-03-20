@@ -2,6 +2,7 @@ extern crate chrono;
 #[macro_use]
 extern crate clap;
 
+use ansi_term::Colour::Green;
 use chrono::NaiveDateTime;
 use clap::{App, Arg};
 use std::env;
@@ -80,7 +81,13 @@ fn main() -> Result<(), io::Error> {
         f.write(LINE_ENDING.as_bytes())?;
     }
 
+    #[cfg(target_os = "windows")]
+    ansi_term::enable_ansi_support();
+
     println!("Merge succeeded!!!");
-    println!("[{}] was created.", dest_path.to_str().unwrap());
+    println!(
+        "[{}] was created.",
+        Green.bold().paint(dest_path.to_str().unwrap())
+    );
     Ok(())
 }
