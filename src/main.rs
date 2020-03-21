@@ -11,9 +11,11 @@ use std::io::Write;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 
+type Result<T> = std::result::Result<T, io::Error>;
+
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Priority {
+enum Priority {
     First = 1,
     Second,
     Third,
@@ -42,7 +44,7 @@ const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
-fn parse_log_file(path: &str, priority: Priority) -> Result<Vec<Row>, io::Error> {
+fn parse_log_file(path: &str, priority: Priority) -> Result<Vec<Row>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut rows: Vec<Row> = Vec::new();
@@ -63,7 +65,7 @@ fn parse_log_file(path: &str, priority: Priority) -> Result<Vec<Row>, io::Error>
     Ok(rows)
 }
 
-fn main() -> Result<(), io::Error> {
+fn run() -> Result<()> {
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -126,4 +128,15 @@ fn main() -> Result<(), io::Error> {
         Green.bold().paint(dest_path.to_str().unwrap())
     );
     Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        let message = e.to_string();
+        io::stderr()
+            .write_all(&format!("caused: {}", message).into_bytes())
+            .unwrap();
+        std::process::exit(1);
+    }
+    std::process::exit(0);
 }
