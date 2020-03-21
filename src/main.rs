@@ -21,15 +21,15 @@ pub enum Priority {
 }
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct Log {
+struct Row {
     time: NaiveDateTime,
     content: String,
     priority: Priority,
 }
 
-impl Log {
+impl Row {
     pub fn new(time: NaiveDateTime, content: String, priority: Priority) -> Self {
-        Log {
+        Row {
             time,
             content,
             priority,
@@ -42,25 +42,25 @@ const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
-fn parse_log_file(path: &str, priority: Priority) -> Result<Vec<Log>, io::Error> {
+fn parse_log_file(path: &str, priority: Priority) -> Result<Vec<Row>, io::Error> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    let mut ret: Vec<Log> = Vec::new();
+    let mut rows: Vec<Row> = Vec::new();
     for content in reader.lines() {
         let content = content?;
-        let v: Vec<&str> = content.split('|').map(|s| s.trim()).collect();
-        match NaiveDateTime::parse_from_str(v[0], "%F %H:%M:%S,%3f") {
+        let temp: Vec<&str> = content.split('|').map(|s| s.trim()).collect();
+        match NaiveDateTime::parse_from_str(temp[0], "%F %H:%M:%S,%3f") {
             Ok(dt) => {
-                ret.push(Log::new(dt, content, priority));
+                rows.push(Row::new(dt, content, priority));
             }
             Err(_) => {
-                if let Some(last) = ret.last_mut() {
-                    last.content += &(LINE_ENDING.to_string() + &content);
+                if let Some(last_row) = rows.last_mut() {
+                    last_row.content += &(LINE_ENDING.to_string() + &content);
                 }
             }
         }
     }
-    Ok(ret)
+    Ok(rows)
 }
 
 fn main() -> Result<(), io::Error> {
@@ -108,13 +108,13 @@ fn main() -> Result<(), io::Error> {
     let file_stem = Path::new(base_path).file_stem().unwrap();
     let dest_path = Path::new(env::current_dir()?.to_str().unwrap())
         .join(format!("{}_merged.log", file_stem.to_str().unwrap()));
-    let mut f = File::create(&dest_path)?;
-    for log in base_log.iter().filter(|l| l.time >= start_time) {
+    let mut file = File::create(&dest_path)?;
+    for row in base_log.iter().filter(|l| l.time >= start_time) {
         if !matches.is_present("noidx") {
-            write!(f, "[{}] ", log.priority as u8)?;
+            write!(file, "[{}] ", row.priority as u8)?;
         }
-        write!(f, "{}", log.content)?;
-        write!(f, "{}", LINE_ENDING)?;
+        write!(file, "{}", row.content)?;
+        write!(file, "{}", LINE_ENDING)?;
     }
 
     #[cfg(target_os = "windows")]
